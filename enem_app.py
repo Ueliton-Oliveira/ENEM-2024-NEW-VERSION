@@ -1,232 +1,155 @@
 import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
-# Configuração da página com ícone, título e layout
-st.set_page_config(
-    page_title="Painel Educacional - ENEM 2024",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Carregar dados
+enem_es_2024 = pd.read_csv('/workspaces/ENEM-2024-NEW-VERSION/ENEM_ES_2024_modificado.csv')
 
-# CSS personalizado para a capa/apresentação
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E40AF;
-        text-align: center;
-        margin-bottom: 2rem;
-        font-weight: bold;
-    }
-    .subheader {
-        font-size: 1.5rem;
-        color: #374151;
-        margin-bottom: 1rem;
-        font-weight: 600;
-    }
-    .info-box {
-        background-color: #F3F4F6;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #1E40AF;
-        margin-bottom: 1.5rem;
-    }
-    .highlight {
-        background-color: #FFFBEB;
-        padding: 0.2rem 0.5rem;
-        border-radius: 5px;
-        font-weight: 500;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Sidebar
+st.sidebar.title("Navegação do Painel")
+selecao = st.sidebar.radio("Selecione uma visualização", [
+    "Presença por Área",
+    "Distribuição por Língua Estrangeira",
+    "Notas Médias por Área"
+])
 
-# Função para carregar dados
-@st.cache_data
-def load_data(path):
-    df = pd.read_csv(path)
+# Capa colorida dividida em duas colunas (esquerda conteúdo, direita quadro)
+col1, col2 = st.columns([3,1])
+
+with col1:
+    st.markdown("""
+    <div style="background: linear-gradient(90deg, #2274A5 0%, #18BC9C 100%);
+                border-radius: 12px; padding: 24px; color: white;">
+    <h1>Painel de Análise do ENEM 2024 - Espírito Santo</h1>
+    <h2>Sobre o projeto</h2>
+    <p>
+    Esta aplicação apresenta um MVP desenvolvido como parte da avaliação da disciplina de Cloud Computing na Pós-Graduação em Mineração de Dados.
+    <br><br>
+    <b>Objetivo:</b> Criar um painel interativo para análise e visualização dos resultados do ENEM 2024 no estado do Espírito Santo:
+    <ul>
+      <li>Visualizar presenças e ausências nas áreas de conhecimento</li>
+      <li>Visualizar quantidade de alunos para cada Língua Estrangeira</li>
+      <li>Visualizar os resultados nas áreas e redação</li>
+      <li>Visualizar notas médias por área, município e código de escola</li>
+    </ul>
+    </p>
+    <p>
+    <b>Fonte de Dados:</b><br>
+    Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (INEP)<br>
+    Microdados do ENEM 2024: CN, CH, LC, MT, Redação
+    </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div style="background-color: #18BC9C; border-radius: 12px; padding: 20px;
+                color: white; font-weight: bold; text-align: center;">
+        Disciplina:<br>Cloud Computing<br><br>
+        Professor:<br>Maxwell Monteiro<br><br>
+        Aluno:<br>Uéliton José de Oliveira
+    </div>
+    """, unsafe_allow_html=True)
+
+# Função para filtrar df baseado em filtros selecionados
+def filtrar_df(df, municipio, codigo_escola):
+    if municipio != 'Todos':
+        df = df[df['NOME MUN. PROVA'] == municipio]
+    if codigo_escola != 'Todos':
+        df = df[df['CÓD. ESCOLA'].astype(str) == codigo_escola]
     return df
 
-# Função para plotar gráfico de barras das notas
-def plot_bar_notas(df, colunas_notas):
-    fig, axs = plt.subplots(1, len(colunas_notas), figsize=(15,4))
-    if len(colunas_notas) == 1:
-        axs = [axs]
-    for i, col in enumerate(colunas_notas):
-        axs[i].hist(df[col].dropna(), bins=20, color='skyblue', edgecolor='black')
-        axs[i].set_title(f'Distribuição {col}')
-        axs[i].set_xlabel('Nota')
-        axs[i].set_ylabel('Frequência')
-    plt.tight_layout()
-    st.pyplot(fig)
+if selecao == "Presença por Área":
+    colunas_presenca = ['PRESENÇA EM CN', 'PRESENÇA EM CH', 'PRESENÇA EM LC', 'PRESENÇA EM MT']
+    tabela_presenca_plot = enem_es_2024[colunas_presenca].apply(pd.Series.value_counts).fillna(0).astype(int).reset_index()
+    tabela_presenca_plot = tabela_presenca_plot.rename(columns={'index': 'Status de Presença'})
+    tabela_presenca_melted = tabela_presenca_plot.melt(id_vars='Status de Presença', var_name='Matéria', value_name='Quantidade de Alunos')
+    mapeamento_status = {'Faltou': 'Faltou', 'Presente': 'Presente', 'Eliminado': 'Eliminado'}
+    tabela_presenca_melted['Status de Presença'] = tabela_presenca_melted['Status de Presença'].map(mapeamento_status)
+    total_por_materia = tabela_presenca_melted.groupby('Matéria')['Quantidade de Alunos'].transform('sum')
+    tabela_presenca_melted['Percentual'] = (tabela_presenca_melted['Quantidade de Alunos'] / total_por_materia) * 100
 
-# Função para plotar gráfico de pizza/rosca de língua estrangeira
-def plot_pizza_lingua(df):
-    contagem = df['LÍNGUA ESTRANGEIRA'].value_counts()
-    labels = contagem.index.tolist()
-    fig, ax = plt.subplots()
-    wedges, texts, autotexts = ax.pie(
-        contagem,
-        labels=labels,
-        autopct='%1.1f%%',
-        startangle=90,
-        wedgeprops=dict(width=0.4)
+    fig = px.bar(
+        tabela_presenca_melted,
+        x='Status de Presença',
+        y='Quantidade de Alunos',
+        color='Matéria',
+        barmode='group',
+        title='Contagem de Presença por Matéria',
+        labels={'Status de Presença': 'Status de Presença', 'Quantidade de Alunos': 'Número de Estudantes'},
+        hover_data={'Quantidade de Alunos': True, 'Matéria': True, 'Status de Presença': True, 'Percentual': ':.2f%'}
     )
-    ax.set_title('Distribuição Língua Estrangeira')
-    st.pyplot(fig)
+    fig.update_layout(xaxis_title='Status de Presença', yaxis_title='Número de Estudantes')
+    st.plotly_chart(fig, use_container_width=True)
 
-# Função para plotar média de nota final redação por município (gráfico de barras)
-def plot_bar_media_redacao(df):
-    medias = df.groupby('NOME MUN. PROVA')['NOTA FINAL REDAÇÃO'].mean().sort_values()
-    fig, ax = plt.subplots(figsize=(10,6))
-    medias.plot(kind='barh', color='coral', ax=ax)
-    ax.set_xlabel('Média Nota Final Redação')
-    ax.set_ylabel('Município')
-    ax.set_title('Média da Nota Final de Redação por Município')
-    st.pyplot(fig)
+elif selecao == "Distribuição por Língua Estrangeira":
+    contagem_lingua = enem_es_2024['LÍNGUA ESTRANGEIRA'].value_counts().reset_index()
+    contagem_lingua.columns = ['Língua Estrangeira', 'Quantidade de Alunos']
+    fig = px.pie(
+        contagem_lingua,
+        values='Quantidade de Alunos',
+        names='Língua Estrangeira',
+        title='Distribuição de Alunos por Língua Estrangeira',
+        hole=0.7
+    )
+    fig.update_traces(textinfo='percent+value', hoverinfo='label+value+percent')
+    st.plotly_chart(fig, use_container_width=True)
 
-# Função para plotar gráficos de barras para presença nas provas
-def plot_bar_presenca(df, col_presenca, titulo):
-    contagem = df[col_presenca].value_counts()
-    fig, ax = plt.subplots()
-    contagem.plot(kind='bar', color='mediumseagreen', ax=ax)
-    ax.set_title(titulo)
-    ax.set_xlabel('Status')
-    ax.set_ylabel('Quantidade')
-    st.pyplot(fig)
+elif selecao == "Notas Médias por Área":
+    colunas_notas = ['NOTA EM CN', 'NOTA EM CH', 'NOTA EM LC', 'NOTA EM MT', 'NOTA FINAL REDAÇÃO']
 
-# --- Início da aplicação ---
+    municipios = ['Todos'] + sorted(enem_es_2024['NOME MUN. PROVA'].dropna().unique().tolist())
+    municipio = st.selectbox('Selecione o município:', municipios)
 
-# Navegação entre páginas na sidebar
-page = st.sidebar.selectbox('Navegação', ['Apresentação', 'Dashboard'])
+    # Lista de códigos de escola filtrada pelo município selecionado
+    if municipio == 'Todos':
+        codigos_escola = ['Todos'] + sorted(enem_es_2024['CÓD. ESCOLA'].dropna().astype(str).unique().tolist())
+    else:
+        codigos_municipio = enem_es_2024.loc[enem_es_2024['NOME MUN. PROVA'] == municipio, 'CÓD. ESCOLA'].dropna().astype(str).unique()
+        codigos_escola = ['Todos'] + sorted(codigos_municipio.tolist())
 
-if page == 'Apresentação':
-    # Cabeçalho principal estilizado da capa
-    st.markdown('<div class="main-header">🎓 Painel de Análise do ENEM 2024 - Espírito Santo</div>', unsafe_allow_html=True)
+    codigo_escola = st.selectbox('Selecione o código da escola:', codigos_escola)
 
-    # Duas colunas com informações do projeto e pessoas
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        st.markdown("""
-        <div class="info-box">
-            <h3>📊 Sobre o Projeto</h3>
-            <p>Esta aplicação apresenta um <span class="highlight">MVP (Produto Mínimo Viável)</span> desenvolvido como parte 
-            da avaliação da disciplina de Cloud Computing para produtos de dados na Pós-graduação em Mineração de Dados.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown("""
-        <div style="background-color: #EFF6FF; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <h4>👨‍🏫 Professor</h4>
-            <p><strong>Maxwell Monteiro</strong></p>
-            <h4>👨‍🎓 Aluno</h4>
-            <p><strong>Uéliton José de Oliveira</strong></p>
-        </div>
-        """, unsafe_allow_html=True)
+    df_filtrado = filtrar_df(enem_es_2024, municipio, codigo_escola)
+    notas_medias = df_filtrado[colunas_notas].mean().round(2).tolist() if not df_filtrado.empty else [0]*len(colunas_notas)
 
-    # Objetivo do Projeto
-    st.markdown('<div class="subheader">🎯 Objetivo do Projeto</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="background-color: #F0FDF4; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #10B981;">
-        <p>O objetivo principal é criar um <strong>painel interativo</strong> para análise e visualização dos resultados 
-        do ENEM 2024 no estado do Espírito Santo. A aplicação permitirá:</p>
-        <ul>
-            <li>📈 Análise comparativa das notas por área de conhecimento</li>
-            <li>🏫 Visualização do desempenho por escola e município</li>
-            <li>📊 Identificação de padrões e tendências educacionais</li>
-            <li>🎯 Benchmarking com médias estaduais e nacionais</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=colunas_notas, y=notas_medias, text=notas_medias, textposition='outside'))
+    titulo = 'Notas Médias por Matéria'
+    if municipio != 'Todos': titulo += f' - {municipio}'
+    if codigo_escola != 'Todos': titulo += f' (Escola: {codigo_escola})'
 
-    # Fonte dos Dados
-    st.markdown('<div class="subheader">📁 Fonte dos Dados</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="background-color: #FEF3C7; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #F59E0B;">
-        <p>Os dados utilizados neste projeto são <strong>públicos e oficiais</strong>, obtidos através do:</p>
-        <p>🏛️ <strong>Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (INEP)</strong></p>
-        <p>📊 <strong>Microdados do ENEM 2024</strong> contendo:</p>
-        <ul>
-            <li>🔬 Ciências da Natureza</li>
-            <li>🌍 Ciências Humanas</li>
-            <li>📝 Linguagens e Códigos</li>
-            <li>🧮 Matemática</li>
-            <li>✍️ Redação</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    fig.update_layout(
+        title=titulo,
+        xaxis_title='Matéria',
+        yaxis_title='Nota Média',
+        yaxis=dict(range=[0, 1000]),
+        uniformtext_minsize=8,
+        uniformtext_mode='hide'
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-else:
-    # Carrega dados
-    df = load_data('/workspaces/ENEM-2024-NEW-VERSION/ENEM_ES_2024_modificado.csv')
-
-    # Sidebar - filtros
-    st.sidebar.header('Filtros')
-
-    # Filtro Código Escola
-    cod_escolas = ['Todos'] + sorted(df['CÓD. ESCOLA'].dropna().unique().astype(str).tolist())
-    cod_escola_sel = st.sidebar.selectbox('Código da Escola', cod_escolas)
-    if cod_escola_sel != 'Todos':
-        df = df[df['CÓD. ESCOLA'].astype(str) == cod_escola_sel]
-
-    # Filtro Município
-    municipios = ['Todos'] + sorted(df['NOME MUN. PROVA'].dropna().unique().tolist())
-    municipio_sel = st.sidebar.selectbox('Município da Prova', municipios)
-    if municipio_sel != 'Todos':
-        df = df[df['NOME MUN. PROVA'] == municipio_sel]
-
-    # Filtros de Presença em CN, CH, LC e MT
-    for prova, label in zip(['PRESENÇA EM CN', 'PRESENÇA EM CH', 'PRESENÇA EM LC', 'PRESENÇA EM MT'],
-                        ['Presença CN', 'Presença CH', 'Presença LC', 'Presença MT']):
-        opcao = st.sidebar.selectbox(f'Filtro {label}', ['Todos', 'Presente', 'Faltou', 'Eliminado'])
-        if opcao != 'Todos':
-            df = df[df[prova] == opcao]
-
-    # Filtros de notas na sidebar para cada área e para redação
-    st.sidebar.header('Filtros de Notas')
-    cols_notas = ['NOTA EM CN', 'NOTA EM CH', 'NOTA EM LC', 'NOTA EM MT', 'NOTA FINAL REDAÇÃO']
-
-    for col in cols_notas:
-        col_series = pd.to_numeric(df[col], errors='coerce')
-        min_val = float(np.nanmin(col_series))
-        max_val = float(np.nanmax(col_series))
-        faixa = st.sidebar.slider(
-            f'Faixa de {col}', 
-            min_value=0.0, 
-            max_value=1000.0, 
-            value=(min_val, max_val), 
-            step=1.0
+    if municipio == 'Todos' and codigo_escola == 'Todos':
+        colunas_para_agrupar = ['NOME MUN. PROVA'] + colunas_notas
+        notas_medias_por_municipio = enem_es_2024[colunas_para_agrupar].groupby('NOME MUN. PROVA').mean().reset_index()
+        notas_medias_melted = notas_medias_por_municipio.melt(id_vars='NOME MUN. PROVA', var_name='Área do Conhecimento', value_name='Nota Média')
+        fig2 = px.bar(
+            notas_medias_melted,
+            x='NOME MUN. PROVA',
+            y='Nota Média',
+            color='Área do Conhecimento',
+            title='Notas Médias por Área do Conhecimento e Município',
+            labels={'NOME MUN. PROVA': 'Município', 'Nota Média': 'Nota Média'},
+            hover_data={'Nota Média': ':.2f'}
         )
-        df = df[(col_series >= faixa[0]) & (col_series <= faixa[1])]
+        fig2.update_layout(xaxis_title='Município', yaxis_title='Nota Média', xaxis={'categoryorder': 'total descending'})
+        st.plotly_chart(fig2, use_container_width=True)
 
-    # ----- Seção Principal -----
-    st.title('Dashboard ENEM 2024 - Escolas Estaduais do Espírito Santo')
-
-    # 1) Tabela descritiva da base de dados (numérica)
-    st.header('Descrição Estatística dos Dados')
-    st.dataframe(df.describe())
-
-    # 2) Gráficos
-    st.header('Visualizações')
-
-    # Gráficos de barras para distribuição das notas
-    st.subheader('Distribuição das Notas - CN, CH, LC, MT')
-    plot_bar_notas(df, ['NOTA EM CN', 'NOTA EM CH', 'NOTA EM LC', 'NOTA EM MT'])
-
-    # Gráfico de pizza/rosca para Língua Estrangeira
-    st.subheader('Distribuição Língua Estrangeira')
-    plot_pizza_lingua(df)
-
-    # Gráfico de barras para médias da Redação por município
-    st.subheader('Média da Nota Final de Redação por Município')
-    plot_bar_media_redacao(df)
-
-    # Gráficos de barras para distribuição de presença
-    st.subheader('Distribuição de Presença nas Provas')
-    plot_bar_presenca(df, 'PRESENÇA EM CN', 'Presença em Ciências da Natureza')
-    plot_bar_presenca(df, 'PRESENÇA EM CH', 'Presença em Ciências Humanas')
-    plot_bar_presenca(df, 'PRESENÇA EM LC', 'Presença em Linguagens e Códigos')
-    plot_bar_presenca(df, 'PRESENÇA EM MT', 'Presença em Matemática')
-
+# Destaques automáticos para gestores
+media_geral_CN = enem_es_2024['NOTA EM CN'].mean()
+media_geral_CH = enem_es_2024['NOTA EM CH'].mean()
+media_geral_LC = enem_es_2024['NOTA EM LC'].mean()
+media_geral_MT = enem_es_2024['NOTA EM MT'].mean()
+media_geral_redacao = enem_es_2024['NOTA FINAL REDAÇÃO'].mean()
+st.markdown(f"<div style='color: #2274A5;'><b>Destaques:</b> Média CN: {media_geral_CN:.2f} | CH: {media_geral_CH:.2f} | LC: {media_geral_LC:.2f} | MT: {media_geral_MT:.2f} | Redação: {media_geral_redacao:.2f}</div>", unsafe_allow_html=True)
