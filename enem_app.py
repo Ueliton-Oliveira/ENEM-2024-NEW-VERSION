@@ -1,155 +1,148 @@
 import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
+import altair as alt
+import numpy as np
+import plotly.express as px 
+import matplotlib as mp
 
-# Carregar dados
-enem_es_2024 = pd.read_csv('/workspaces/ENEM-2024-NEW-VERSION/ENEM_ES_2024_modificado.csv')
+st.set_page_config(
+    page_title="PAINEL ENEM 2024 - ESPÍRITO SANTO",
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
-# Sidebar
-st.sidebar.title("Navegação do Painel")
-selecao = st.sidebar.radio("Selecione uma visualização", [
-    "Presença por Área",
-    "Distribuição por Língua Estrangeira",
-    "Notas Médias por Área"
-])
+st.markdown("""
+<style>
+/* Fundo da sidebar com degradê azul suave */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #E3F2FD 0%, #BBDEFB 100%);
+}
 
-# Capa colorida dividida em duas colunas (esquerda conteúdo, direita quadro)
-col1, col2 = st.columns([3,1])
+/* Cor padrão dos textos */
+[data-testid="stSidebar"] * {
+    color: #0D47A1 !important;
+}
 
-with col1:
+/* BOTÕES — estilo claro e leve */
+div.stButton > button {
+    background-color: #FFFFFF !important; /* branco leve */
+    color: #0D47A1 !important;
+    border: 1px solid #90CAF9 !important;
+    border-radius: 10px !important;
+    padding: 6px 12px !important;
+    font-weight: 600 !important;
+    width: 100%;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Ao passar o mouse */
+div.stButton > button:hover {
+    background-color: #E3F2FD !important;
+    color: #0D47A1 !important;
+    border-color: #64B5F6 !important;
+}
+
+/* Margem entre os botões */
+div.stButton {
+    margin-bottom: 6px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+if "page" not in st.session_state:
+    st.session_state.page = "Capa"
+
+def navigate(to):
+    st.session_state.page = to
+
+#--------------SIDEBAR--------------
+with st.sidebar:
+    st.markdown("Navegação")
+    st.button("&#x1F4D8; Capa", on_click=navigate, args=("Capa",))
+    st.button("&#x1F465; Presenças", on_click=navigate, args=("Presenças",))
+    st.button("&#128292; Línguas Estrangeiras", on_click=navigate, args=("Línguas",))
+    st.button("&#x1F4CA; Resultados", on_click=navigate, args=("Resultados",))
+    st.button("&#x1F4C8; Médias", on_click=navigate, args=("Médias",))
+
+if st.session_state.page == "Capa":
     st.markdown("""
-    <div style="background: linear-gradient(90deg, #2274A5 0%, #18BC9C 100%);
-                border-radius: 12px; padding: 24px; color: white;">
-    <h1>Painel de Análise do ENEM 2024 - Espírito Santo</h1>
-    <h2>Sobre o projeto</h2>
-    <p>
-    Esta aplicação apresenta um MVP desenvolvido como parte da avaliação da disciplina de Cloud Computing na Pós-Graduação em Mineração de Dados.
-    <br><br>
-    <b>Objetivo:</b> Criar um painel interativo para análise e visualização dos resultados do ENEM 2024 no estado do Espírito Santo:
-    <ul>
-      <li>Visualizar presenças e ausências nas áreas de conhecimento</li>
-      <li>Visualizar quantidade de alunos para cada Língua Estrangeira</li>
-      <li>Visualizar os resultados nas áreas e redação</li>
-      <li>Visualizar notas médias por área, município e código de escola</li>
-    </ul>
-    </p>
-    <p>
-    <b>Fonte de Dados:</b><br>
-    Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (INEP)<br>
-    Microdados do ENEM 2024: CN, CH, LC, MT, Redação
-    </p>
+    <style>
+    .capa-container {
+        background: linear-gradient(135deg, #f5fafd 60%, #e3f0fb 100%);
+        border-radius: 18px;
+        padding: 3rem 2rem 2rem 2rem;
+        margin-top: 2rem;
+        box-shadow: 0 0 18px #e3e9f7;
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .capa-title {
+        color: #154178;
+        text-align: center;
+        font-size: 2.4rem;
+        font-weight: 800;
+        letter-spacing: 1px;
+        margin-bottom: 1.2rem;
+    }
+    .capa-section-title {
+        color: #1976d2;
+        font-size: 1.32rem;
+        font-weight: 700;
+        margin-top: 1.6rem;
+        margin-bottom: 0.4rem;
+    }
+    .capa-text {
+        color: #212f3c;
+        font-size: 1.04rem;
+        line-height: 1.7;
+        text-align: justify;
+        margin-bottom: 1rem;
+    }
+    .capa-note {
+        color: #004d40;
+        background: #e6fffa;
+        border-left: 6px solid #00897b;
+        border-radius: 6px;
+        padding: 0.8rem 1rem;
+        margin: 1.3rem 0;
+        font-size: 0.97rem;
+    }
+    .capa-source {
+        color: #425265;
+        font-size: 0.99rem;
+        margin-top: 12px;
+        text-align: right;
+    }
+    </style>
+    <div class="capa-container">
+        <div class="capa-title">
+            Painel de Análise do ENEM 2024 - Espírito Santo
+        </div>
+        <div class="capa-section-title">Sobre o projeto</div>
+        <div class="capa-text">
+            <strong>Objetivo:</strong> painel interativo para análise e visualização dos resultados do ENEM 2024 no estado do Espírito Santo:
+        </div>
+        <div class="capa-text">
+            • Visualizar presenças e ausências nas áreas de conhecimento<br>
+            • Visualizar quantidade de alunos para cada Língua Estrangeira<br>
+            • Visualizar os resultados nas áreas e redação<br>
+            • Visualizar notas médias por área, município e código de escola
+        </div>
+        <div class="capa-note">
+            <strong>Observação importante:</strong> O código da escola indica a escola onde o aluno concluiu o Ensino Médio. Os gráficos mostram a média dos resultados dos alunos que finalizaram o Ensino Médio em cada escola, identificada pelo respectivo código.<br>
+            A base de dados do INEP não fornece o nome da escola, motivo pelo qual apenas o código é apresentado.
+        </div>
+        <div class="capa-text">
+            <strong>Fonte de Dados:</strong> Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (INEP)
+        </div>
+        <div class="capa-text">
+            <strong>Microdados do ENEM 2024:</strong> CN, CH, LC, MT, Redação
+        </div>
+        <div class="capa-source">
+            Desenvolvido por SRE-Cariacica<br>
+            Uéliton J. Oliveira
+        </div>
     </div>
     """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div style="background-color: #18BC9C; border-radius: 12px; padding: 20px;
-                color: white; font-weight: bold; text-align: center;">
-        Disciplina:<br>Cloud Computing<br><br>
-        Professor:<br>Maxwell Monteiro<br><br>
-        Aluno:<br>Uéliton José de Oliveira
-    </div>
-    """, unsafe_allow_html=True)
-
-# Função para filtrar df baseado em filtros selecionados
-def filtrar_df(df, municipio, codigo_escola):
-    if municipio != 'Todos':
-        df = df[df['NOME MUN. PROVA'] == municipio]
-    if codigo_escola != 'Todos':
-        df = df[df['CÓD. ESCOLA'].astype(str) == codigo_escola]
-    return df
-
-if selecao == "Presença por Área":
-    colunas_presenca = ['PRESENÇA EM CN', 'PRESENÇA EM CH', 'PRESENÇA EM LC', 'PRESENÇA EM MT']
-    tabela_presenca_plot = enem_es_2024[colunas_presenca].apply(pd.Series.value_counts).fillna(0).astype(int).reset_index()
-    tabela_presenca_plot = tabela_presenca_plot.rename(columns={'index': 'Status de Presença'})
-    tabela_presenca_melted = tabela_presenca_plot.melt(id_vars='Status de Presença', var_name='Matéria', value_name='Quantidade de Alunos')
-    mapeamento_status = {'Faltou': 'Faltou', 'Presente': 'Presente', 'Eliminado': 'Eliminado'}
-    tabela_presenca_melted['Status de Presença'] = tabela_presenca_melted['Status de Presença'].map(mapeamento_status)
-    total_por_materia = tabela_presenca_melted.groupby('Matéria')['Quantidade de Alunos'].transform('sum')
-    tabela_presenca_melted['Percentual'] = (tabela_presenca_melted['Quantidade de Alunos'] / total_por_materia) * 100
-
-    fig = px.bar(
-        tabela_presenca_melted,
-        x='Status de Presença',
-        y='Quantidade de Alunos',
-        color='Matéria',
-        barmode='group',
-        title='Contagem de Presença por Matéria',
-        labels={'Status de Presença': 'Status de Presença', 'Quantidade de Alunos': 'Número de Estudantes'},
-        hover_data={'Quantidade de Alunos': True, 'Matéria': True, 'Status de Presença': True, 'Percentual': ':.2f%'}
-    )
-    fig.update_layout(xaxis_title='Status de Presença', yaxis_title='Número de Estudantes')
-    st.plotly_chart(fig, use_container_width=True)
-
-elif selecao == "Distribuição por Língua Estrangeira":
-    contagem_lingua = enem_es_2024['LÍNGUA ESTRANGEIRA'].value_counts().reset_index()
-    contagem_lingua.columns = ['Língua Estrangeira', 'Quantidade de Alunos']
-    fig = px.pie(
-        contagem_lingua,
-        values='Quantidade de Alunos',
-        names='Língua Estrangeira',
-        title='Distribuição de Alunos por Língua Estrangeira',
-        hole=0.7
-    )
-    fig.update_traces(textinfo='percent+value', hoverinfo='label+value+percent')
-    st.plotly_chart(fig, use_container_width=True)
-
-elif selecao == "Notas Médias por Área":
-    colunas_notas = ['NOTA EM CN', 'NOTA EM CH', 'NOTA EM LC', 'NOTA EM MT', 'NOTA FINAL REDAÇÃO']
-
-    municipios = ['Todos'] + sorted(enem_es_2024['NOME MUN. PROVA'].dropna().unique().tolist())
-    municipio = st.selectbox('Selecione o município:', municipios)
-
-    # Lista de códigos de escola filtrada pelo município selecionado
-    if municipio == 'Todos':
-        codigos_escola = ['Todos'] + sorted(enem_es_2024['CÓD. ESCOLA'].dropna().astype(str).unique().tolist())
-    else:
-        codigos_municipio = enem_es_2024.loc[enem_es_2024['NOME MUN. PROVA'] == municipio, 'CÓD. ESCOLA'].dropna().astype(str).unique()
-        codigos_escola = ['Todos'] + sorted(codigos_municipio.tolist())
-
-    codigo_escola = st.selectbox('Selecione o código da escola:', codigos_escola)
-
-    df_filtrado = filtrar_df(enem_es_2024, municipio, codigo_escola)
-    notas_medias = df_filtrado[colunas_notas].mean().round(2).tolist() if not df_filtrado.empty else [0]*len(colunas_notas)
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=colunas_notas, y=notas_medias, text=notas_medias, textposition='outside'))
-    titulo = 'Notas Médias por Matéria'
-    if municipio != 'Todos': titulo += f' - {municipio}'
-    if codigo_escola != 'Todos': titulo += f' (Escola: {codigo_escola})'
-
-    fig.update_layout(
-        title=titulo,
-        xaxis_title='Matéria',
-        yaxis_title='Nota Média',
-        yaxis=dict(range=[0, 1000]),
-        uniformtext_minsize=8,
-        uniformtext_mode='hide'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    if municipio == 'Todos' and codigo_escola == 'Todos':
-        colunas_para_agrupar = ['NOME MUN. PROVA'] + colunas_notas
-        notas_medias_por_municipio = enem_es_2024[colunas_para_agrupar].groupby('NOME MUN. PROVA').mean().reset_index()
-        notas_medias_melted = notas_medias_por_municipio.melt(id_vars='NOME MUN. PROVA', var_name='Área do Conhecimento', value_name='Nota Média')
-        fig2 = px.bar(
-            notas_medias_melted,
-            x='NOME MUN. PROVA',
-            y='Nota Média',
-            color='Área do Conhecimento',
-            title='Notas Médias por Área do Conhecimento e Município',
-            labels={'NOME MUN. PROVA': 'Município', 'Nota Média': 'Nota Média'},
-            hover_data={'Nota Média': ':.2f'}
-        )
-        fig2.update_layout(xaxis_title='Município', yaxis_title='Nota Média', xaxis={'categoryorder': 'total descending'})
-        st.plotly_chart(fig2, use_container_width=True)
-
-# Destaques automáticos para gestores
-media_geral_CN = enem_es_2024['NOTA EM CN'].mean()
-media_geral_CH = enem_es_2024['NOTA EM CH'].mean()
-media_geral_LC = enem_es_2024['NOTA EM LC'].mean()
-media_geral_MT = enem_es_2024['NOTA EM MT'].mean()
-media_geral_redacao = enem_es_2024['NOTA FINAL REDAÇÃO'].mean()
-st.markdown(f"<div style='color: #2274A5;'><b>Destaques:</b> Média CN: {media_geral_CN:.2f} | CH: {media_geral_CH:.2f} | LC: {media_geral_LC:.2f} | MT: {media_geral_MT:.2f} | Redação: {media_geral_redacao:.2f}</div>", unsafe_allow_html=True)
